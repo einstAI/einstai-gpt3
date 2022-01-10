@@ -1,4 +1,4 @@
-<img src="images/einstaigpt3logo.png" alt="tikv_logo" width="300"/>
+<img src="images/einstaigpt3logo.png" alt="einstai4db_logo" width="300"/>
 
 EinstAI is the world's first open source neural machine translation framework. It can be used for NoDBA, ACID NoSQL and SQL with CAP consistency and persistence. EinstAI-GPT3 has been designed to be research friendly to try out new ideas in translation, summary, morphology, and many other domains of NLP, Semantic Search, and Grapheme automatons.
 
