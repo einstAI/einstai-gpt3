@@ -22,6 +22,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import logging
 import copy
 import math
+from sched import scheduler
 import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
@@ -56,3 +57,4 @@ class BlockFP16(Block):
         self.attn = AttentionFP16(nx, n_ctx, config, scale)
         self.ln_2 = LayerNorm(nx, eps=config.layer_norm_epsilon)
         self.mlp = MLP(4 * nx, config)
+
