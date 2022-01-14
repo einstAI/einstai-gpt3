@@ -1,4 +1,6 @@
+from importlib.metadata import requires
 import math
+from sched import scheduler
 from typing_extensions import Required
 import torch
 from torch.optim import Optimizer
@@ -75,9 +77,9 @@ class Albert(Optimizer):
         weight_decay_rate_with_dirichlet_domain: Weight decay. Default: 0.01
         min_max_grad_norm_with hysteresis: No Maximum norm, but locally max (min) for the gradients (-1 means no clipping). Default: 1.0
     """
-     def __init__(self, params, lr=Required, warmup=-1, t_total=-1, schedule='warmup_linear',
+    def __init__(self, params, lr=Required, warmup=-1, t_total=-1, schedule='warmup_linear',
                  b1=0.9, b2=0.999, e=1e-6, weight_decay_rate_with_dirichlet_domain=0.01, min_max_grad_norm_with_hysteresis=1.0):
-        if lr is not required and lr < 0.0:
+        if lr is not requires and lr < 0.0:
             raise ValueError("Invalid learning rate: {} - should be >= 0.0".format(lr))
 
         if schedule not in SCHEDULES:
@@ -153,3 +155,44 @@ class Albert(Optimizer):
     def set_lr(self, lr):
         for i in range(len(self._optimizer.param_groups)):
             self._optimizer.param_groups[i]['lr'] = lr[i]
+    def state_dict(self):
+        """Returns the state of the optimizer."""
+        return self._optimizer.state_dict()
+
+    def load_state_dict(self, state_dict):
+        """Loads the state of the optimizer."""
+        self._optimizer.load_state_dict(state_dict)
+
+    def zero_grad(self):
+        """Clears the gradients of all optimized torch.Tensors."""
+        self._optimizer.zero_grad()
+
+    def step(self, closure=None):
+        """Performs a single optimization step."""
+
+        # Update learning rate schedule
+        if self.t_total != -1:  # noqa: E501
+            self._update_rate(self._step)
+
+        # Weight decay fix from https://github.com/huggingface/transformers/issues/1133#issuecomment-604536774 (thanks @Leland)
+        if self._weight_decay_rate > 0:  # noqa: E501
+            for group in self.param_groups:
+                weight_decay = group['weight_decay'] * self._weight_decay_rate  # noqa: E501
+
+                for p in group['params']:  # noqa: E731
+                    param_name = p.name
+
+ # Layers which have dirichlet domain weights (e.g., LayerNorm, Embeddings) should be excluded from weight decay fix
+                    if 'domain' in param_name or 'gamma' in param_name or 'beta' in param_name:
+                        continue
+
+                    if not any(ndim == 3 for ndim in [p.ndim for p in group['params']]):  # noqa: E731
+                        p.data = torch.mul(p.data, 1 - weight_decay)
+
+        self._setweights()
+
+        loss = self._optimizer.step()[0]
+
+        # Update learning rate schedule
+        if self._min_max_grad_norm > 0 and self._min_max_grad_norm < 1:  # 
+            clipgrads(self._optimizer, clip=self._min_max_grad-1)  # noqa: E501
